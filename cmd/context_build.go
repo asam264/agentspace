@@ -9,8 +9,6 @@ import (
 	"github.com/asam264/agentspace/internal/workspace"
 )
 
-// buildContext produces the formatted agent-context text for a workspace,
-// including a live git diff --stat appended at the end.
 func buildContext(p workspace.Paths, ws *workspace.Workspace) string {
 	absPath := filepath.Join(p.Root, filepath.FromSlash(ws.Path))
 
@@ -32,6 +30,20 @@ func buildContext(p workspace.Paths, ws *workspace.Workspace) string {
 	fmt.Fprintf(&b, "基于分支: %s (commit: %s)\n", ws.BaseBranch, ws.BaseCommit)
 	fmt.Fprintf(&b, "创建时间: %s\n", created)
 	fmt.Fprintln(&b, "")
+
+	// 任务说明区块（在注意事项之前）
+	fmt.Fprintln(&b, "== 任务说明 ==")
+	fmt.Fprintln(&b, "")
+	switch {
+	case ws.Prompt != "":
+		fmt.Fprintln(&b, ws.Prompt)
+	case ws.Description != "":
+		fmt.Fprintln(&b, ws.Description)
+	default:
+		fmt.Fprintln(&b, "（未设置任务说明）")
+	}
+	fmt.Fprintln(&b, "")
+
 	fmt.Fprintln(&b, "== 注意事项 ==")
 	fmt.Fprintln(&b, "")
 	fmt.Fprintln(&b, "你的工作目录是上方的【工作目录】路径，所有修改请在此目录内进行")
@@ -41,12 +53,14 @@ func buildContext(p workspace.Paths, ws *workspace.Workspace) string {
 	fmt.Fprintln(&b, "")
 	fmt.Fprintln(&b, "== 当前状态 ==")
 	fmt.Fprintln(&b, stat)
+	fmt.Fprintln(&b, "")
+	fmt.Fprintln(&b, "== 开始工作 ==")
+	fmt.Fprintln(&b, "")
+	fmt.Fprintln(&b, "请根据以上【任务说明】开始实现，无需等待进一步指令。")
 	return b.String()
 }
 
-// parseTime converts an RFC3339 timestamp to "2006-01-02 15:04:05"; empty on failure.
 func parseTime(s string) string {
-	// Minimal reformat without importing time parsing edge cases.
 	if len(s) >= 19 && s[10] == 'T' {
 		return s[:10] + " " + s[11:19]
 	}

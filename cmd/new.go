@@ -12,7 +12,8 @@ import (
 )
 
 func newNewCmd() *cobra.Command {
-	var from, desc string
+	var from, desc, promptStr, promptFile string
+	var editFlag bool
 	cmd := &cobra.Command{
 		Use:   "new <name>",
 		Short: "Create a new workspace (git worktree + branch)",
@@ -22,6 +23,17 @@ func newNewCmd() *cobra.Command {
 			p, cfg, err := requireInit()
 			if err != nil {
 				return err
+			}
+
+			// Resolve prompt text.
+			prompt, err := resolvePrompt(promptStr, promptFile, editFlag, cfg.Editor)
+			if err != nil {
+				return err
+			}
+
+			// Derive description from prompt if --desc not given.
+			if desc == "" && prompt != "" {
+				desc = descFromPrompt(prompt)
 			}
 
 			// Resolve the base ref.
@@ -51,6 +63,7 @@ func newNewCmd() *cobra.Command {
 				s.Workspaces = append(s.Workspaces, workspace.Workspace{
 					Name:        name,
 					Description: desc,
+					Prompt:      prompt,
 					Branch:      branch,
 					BaseCommit:  baseCommit,
 					BaseBranch:  fromRef,
@@ -72,6 +85,9 @@ func newNewCmd() *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&from, "from", "", "branch or commit to base the workspace on (default: config base_branch)")
-	cmd.Flags().StringVar(&desc, "desc", "", "task description (injected into agent context)")
+	cmd.Flags().StringVar(&desc, "desc", "", "short description shown in list (defaults to first line of prompt)")
+	cmd.Flags().StringVar(&promptStr, "prompt", "", "full task description")
+	cmd.Flags().StringVar(&promptFile, "prompt-file", "", "read full task description from file")
+	cmd.Flags().BoolVar(&editFlag, "edit", false, "open editor to write task description interactively")
 	return cmd
 }

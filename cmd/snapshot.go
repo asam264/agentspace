@@ -40,7 +40,7 @@ func newSnapshotCmd() *cobra.Command {
 				ui.Warn("nothing to snapshot (no changes)")
 				return nil
 			}
-			if _, err := git.Run(wsPath, "commit", "-m", "[snapshot] "+message); err != nil {
+			if _, err := git.Run(wsPath, "commit", "--no-verify", "-m", "[snapshot] "+message); err != nil {
 				return err
 			}
 			commit, err := git.RevParseShort(wsPath, "HEAD")

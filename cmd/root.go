@@ -34,6 +34,7 @@ func init() {
 		newCleanCmd(),
 		newContextCmd(),
 		newRunCmd(),
+		newEditCmd(),
 	)
 }
 

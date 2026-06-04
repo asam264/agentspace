@@ -23,6 +23,7 @@ type Snapshot struct {
 type Workspace struct {
 	Name        string     `json:"name"`
 	Description string     `json:"description"`
+	Prompt      string     `json:"prompt"`
 	Branch      string     `json:"branch"`
 	BaseCommit  string     `json:"base_commit"`
 	BaseBranch  string     `json:"base_branch"`

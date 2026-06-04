@@ -75,6 +75,16 @@ func CurrentBranch(dir string) (string, error) {
 	return Run(dir, "rev-parse", "--abbrev-ref", "HEAD")
 }
 
+// CommonDir returns the absolute path of the shared git common dir (the main
+// repo's .git), which is shared by all linked worktrees.
+func CommonDir(dir string) (string, error) {
+	out, err := Run(dir, "rev-parse", "--path-format=absolute", "--git-common-dir")
+	if err != nil {
+		return "", err
+	}
+	return filepath.FromSlash(out), nil
+}
+
 // RevParse resolves a ref to a short commit hash.
 func RevParseShort(dir, ref string) (string, error) {
 	return Run(dir, "rev-parse", "--short", ref)

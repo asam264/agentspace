@@ -33,7 +33,6 @@ func newRunCmd() *cobra.Command {
 			ctx := buildContext(p, ws)
 
 			if agent == "" {
-				// Just print context and how to start manually.
 				fmt.Print(ctx)
 				ui.Plain("\n手动启动：cd %s 然后运行 claude 或 codex", absPath)
 				return nil
@@ -50,31 +49,37 @@ func newRunCmd() *cobra.Command {
 	return cmd
 }
 
-// launchAgent starts the given agent CLI in the workspace dir, injecting context.
-// It tries passing context as a prompt argument; if the binary is missing it
-// writes AGENT_CONTEXT.md and instructs the user.
+// launchAgent writes context to AGENT_CONTEXT.md, then launches the agent with
+// a short trigger prompt so the agent reads the file and starts working.
 func launchAgent(dir, agent, ctx string) error {
 	if _, err := exec.LookPath(agent); err != nil {
 		return writeContextFile(dir, ctx, fmt.Sprintf("%q not found on PATH", agent))
 	}
 
-	// claude and codex both accept an initial prompt as a positional argument.
-	c := exec.Command(agent, ctx)
+	ctxFile := filepath.Join(dir, "AGENT_CONTEXT.md")
+	_ = excludeAgentContext(dir)
+	if err := os.WriteFile(ctxFile, []byte(ctx), 0o644); err != nil {
+		return err
+	}
+
+	// Short trigger prompt — agent reads the file and starts working immediately.
+	trigger := fmt.Sprintf("请阅读工作目录下的 AGENT_CONTEXT.md，然后按其中【任务说明】立即开始实现，无需等待进一步指令。")
+
+	c := exec.Command(agent, trigger)
 	c.Dir = dir
 	c.Stdin = os.Stdin
 	c.Stdout = os.Stdout
 	c.Stderr = os.Stderr
 	ui.Success("Launching %s in %s", agent, dir)
 	if err := c.Run(); err != nil {
-		// Fall back to context file if the invocation form was rejected.
 		return writeContextFile(dir, ctx, fmt.Sprintf("%s exited: %v", agent, err))
 	}
 	return nil
 }
 
-// writeContextFile drops AGENT_CONTEXT.md and tells the user to read it.
 func writeContextFile(dir, ctx, reason string) error {
 	path := filepath.Join(dir, "AGENT_CONTEXT.md")
+	_ = excludeAgentContext(dir)
 	if err := os.WriteFile(path, []byte(ctx), 0o644); err != nil {
 		return err
 	}

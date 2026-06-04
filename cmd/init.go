@@ -61,6 +61,9 @@ func newInitCmd() *cobra.Command {
 			if err := ensureGitignore(p.Root); err != nil {
 				return err
 			}
+			if err := excludeAgentContext(p.Root); err != nil {
+				return err
+			}
 
 			p.AppendLog("init base_branch=" + baseBranch)
 			ui.Success("Initialized agentspace (base branch: %s)", baseBranch)
@@ -100,4 +103,43 @@ func ensureGitignore(root string) error {
 	}
 	_, err = f.WriteString(prefix + "\n# agentspace worktrees\n" + entry + "\n")
 	return err
+}
+
+// excludeAgentContext adds AGENT_CONTEXT.md to the repo's .git/info/exclude so
+// the agent context file is never staged, committed, or merged. The exclude
+// file lives in the shared common dir, so it applies to all worktrees.
+func excludeAgentContext(root string) error {
+	const entry = "AGENT_CONTEXT.md"
+	commonDir, err := git.CommonDir(root)
+	if err != nil {
+		return nil // best-effort: skip if we cannot resolve the git dir
+	}
+	infoDir := filepath.Join(commonDir, "info")
+	if err := os.MkdirAll(infoDir, 0o755); err != nil {
+		return nil
+	}
+	excludePath := filepath.Join(infoDir, "exclude")
+
+	data, err := os.ReadFile(excludePath)
+	if err != nil && !os.IsNotExist(err) {
+		return nil
+	}
+	content := string(data)
+	for _, line := range strings.Split(content, "\n") {
+		if strings.TrimSpace(line) == entry {
+			return nil // already excluded
+		}
+	}
+
+	f, err := os.OpenFile(excludePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+	if err != nil {
+		return nil
+	}
+	defer f.Close()
+	prefix := ""
+	if len(content) > 0 && !strings.HasSuffix(content, "\n") {
+		prefix = "\n"
+	}
+	_, _ = f.WriteString(prefix + entry + "\n")
+	return nil
 }
