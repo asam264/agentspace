@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 	"text/tabwriter"
 
 	"github.com/asam264/agentspace/internal/ui"
@@ -42,14 +43,14 @@ func newListCmd() *cobra.Command {
 			}
 
 			w := tabwriter.NewWriter(os.Stdout, 0, 4, 2, ' ', 0)
-			fmt.Fprintln(w, "NAME\tDESCRIPTION\tBASE\tSTATUS\tSNAPSHOTS\tPATH")
+			fmt.Fprintln(w, "NAME\tDESCRIPTION\tBASE\tSTATUS\tDEPS\tSCOPE\tPATH")
 			for _, ws := range store.Workspaces {
 				desc := ws.Description
 				if desc == "" {
 					desc = "-"
 				}
-				fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%d\t%s\n",
-					ws.Name, desc, ws.BaseBranch, ws.Status, len(ws.Snapshots), ws.Path)
+				fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
+					ws.Name, desc, ws.BaseBranch, ws.Status, orDash(strings.Join(ws.Task.DependsOn, ",")), orDash(strings.Join(ws.Task.FileScope, ",")), ws.Path)
 			}
 			return w.Flush()
 		},

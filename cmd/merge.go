@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/asam264/agentspace/internal/git"
 	"github.com/asam264/agentspace/internal/ui"
@@ -48,39 +50,26 @@ func newMergeCmd() *cobra.Command {
 	return cmd
 }
 
-// mergeDryRun creates a temp branch off base, tries to merge, reports conflicts,
-// then aborts and deletes the temp branch leaving no trace.
+// mergeDryRun tests the merge in a detached temporary worktree. It never checks
+// out another branch in the user's main worktree.
 func mergeDryRun(p workspace.Paths, ws *workspace.Workspace) error {
-	cfg, err := p.LoadConfig()
-	if err != nil {
-		return err
-	}
-	tmpBranch := "agentspace-dryrun/" + ws.Name
-
-	// Create temp branch at base branch tip and check it out.
-	if _, err := git.Run(p.Root, "branch", "-f", tmpBranch, cfg.BaseBranch); err != nil {
+	tmpPath := filepath.Join(p.Base, fmt.Sprintf("merge-dryrun-%d", time.Now().UnixNano()))
+	if _, err := git.WorktreeAddDetached(p.Root, tmpPath, ws.BaseBranch); err != nil {
 		return err
 	}
 	cleanup := func() {
-		_, _ = git.Run(p.Root, "merge", "--abort")
-		_, _ = git.Run(p.Root, "checkout", cfg.BaseBranch)
-		_, _ = git.Run(p.Root, "branch", "-D", tmpBranch)
+		_, _ = git.Run(tmpPath, "merge", "--abort")
+		_, _ = git.WorktreeRemove(p.Root, tmpPath)
 	}
+	defer cleanup()
 
-	if _, err := git.Run(p.Root, "checkout", tmpBranch); err != nil {
-		_, _ = git.Run(p.Root, "branch", "-D", tmpBranch)
-		return err
-	}
-
-	_, mergeErr := git.Run(p.Root, "merge", "--no-commit", "--no-ff", ws.Branch)
+	_, mergeErr := git.Run(tmpPath, "merge", "--no-commit", "--no-ff", ws.Branch)
 	if mergeErr == nil {
-		cleanup()
-		ui.Success("No conflicts: %q merges cleanly into %s", ws.Name, cfg.BaseBranch)
+		ui.Success("No conflicts: %q merges cleanly into %s", ws.Name, ws.BaseBranch)
 		return nil
 	}
 
-	conflicts, _ := git.Run(p.Root, "diff", "--name-only", "--diff-filter=U")
-	cleanup()
+	conflicts, _ := git.Run(tmpPath, "diff", "--name-only", "--diff-filter=U")
 	if conflicts == "" {
 		ui.Warn("merge would not apply cleanly")
 		return nil
@@ -94,7 +83,7 @@ func mergeDryRun(p workspace.Paths, ws *workspace.Workspace) error {
 
 // mergeRun performs the real squash merge into the base branch.
 func mergeRun(p workspace.Paths, cfg *workspace.Config, ws *workspace.Workspace) error {
-	if _, err := git.Run(p.Root, "checkout", cfg.BaseBranch); err != nil {
+	if err := ensureMergeReady(p, ws); err != nil {
 		return err
 	}
 	_, mergeErr := git.Run(p.Root, "merge", "--squash", ws.Branch)
@@ -115,7 +104,7 @@ func mergeRun(p workspace.Paths, cfg *workspace.Config, ws *workspace.Workspace)
 		return fmt.Errorf("merge stopped due to conflicts")
 	}
 
-	msg := fmt.Sprintf("agentspace: merge %s\n\n%s", ws.Name, ws.Description)
+	msg := fmt.Sprintf("agentspace: merge %s\n\n%s", ws.Name, mergeSummary(ws))
 	if _, err := git.Run(p.Root, "commit", "--no-verify", "-m", msg); err != nil {
 		return err
 	}
@@ -137,7 +126,7 @@ func mergeContinue(p workspace.Paths, name string) error {
 	if _, err := git.Run(p.Root, "add", "-A"); err != nil {
 		return err
 	}
-	msg := fmt.Sprintf("agentspace: merge %s\n\n%s", ws.Name, ws.Description)
+	msg := fmt.Sprintf("agentspace: merge %s\n\n%s", ws.Name, mergeSummary(ws))
 	if _, err := git.Run(p.Root, "commit", "--no-verify", "-m", msg); err != nil {
 		return err
 	}
@@ -147,7 +136,7 @@ func mergeContinue(p workspace.Paths, name string) error {
 	return nil
 }
 
-// mergeAbort aborts an in-progress merge and restores active status.
+// mergeAbort aborts an in-progress merge and restores accepted status.
 func mergeAbort(p workspace.Paths, name string) error {
 	if _, err := git.Run(p.Root, "merge", "--abort"); err != nil {
 		// For squash conflicts there may be no MERGE_HEAD; fall back to reset.
@@ -155,10 +144,58 @@ func mergeAbort(p workspace.Paths, name string) error {
 			return err
 		}
 	}
-	_ = setStatus(p, name, workspace.StatusActive)
+	_ = setStatus(p, name, workspace.StatusAccepted)
 	p.AppendLog("merge-abort name=" + name)
 	ui.Success("Aborted merge of %q; base branch restored", name)
 	return nil
+}
+
+// ensureMergeReady protects the main worktree and makes merge operate on the
+// exact commit the master reviewed, rather than a later workspace mutation.
+func ensureMergeReady(p workspace.Paths, ws *workspace.Workspace) error {
+	if ws.Status != workspace.StatusAccepted || ws.Handoff == nil || ws.Review == nil || ws.Review.Decision != "accepted" {
+		return fmt.Errorf("workspace %q must be approved before it can be merged", ws.Name)
+	}
+	if ws.Review.Commit != ws.Handoff.Commit {
+		return fmt.Errorf("workspace %q review does not match its submitted handoff", ws.Name)
+	}
+	branch, err := git.CurrentBranch(p.Root)
+	if err != nil {
+		return err
+	}
+	if branch != ws.BaseBranch {
+		return fmt.Errorf("main worktree is on %q; switch to workspace base branch %q before merging", branch, ws.BaseBranch)
+	}
+	dirty, err := git.Run(p.Root, "status", "--porcelain")
+	if err != nil {
+		return err
+	}
+	if dirty != "" {
+		return fmt.Errorf("main worktree has uncommitted changes; commit, stash, or clean it before merging:\n%s", dirty)
+	}
+	wsPath := filepath.Join(p.Root, filepath.FromSlash(ws.Path))
+	head, err := git.Run(wsPath, "rev-parse", "HEAD")
+	if err != nil {
+		return err
+	}
+	if head != ws.Handoff.Commit {
+		return fmt.Errorf("workspace %q changed after approval; it must be resubmitted and reviewed", ws.Name)
+	}
+	store, err := p.LoadStore()
+	if err != nil {
+		return err
+	}
+	if blockers := dependencyBlockers(store, ws); len(blockers) > 0 {
+		return fmt.Errorf("workspace %q has unmet dependencies: %s", ws.Name, strings.Join(blockers, "; "))
+	}
+	return nil
+}
+
+func mergeSummary(ws *workspace.Workspace) string {
+	if ws.Handoff != nil && ws.Handoff.Summary != "" {
+		return ws.Handoff.Summary
+	}
+	return ws.Description
 }
 
 // setStatus updates a workspace status under lock.
@@ -169,6 +206,7 @@ func setStatus(p workspace.Paths, name, status string) error {
 			return fmt.Errorf("workspace %q not found", name)
 		}
 		cur.Status = status
+		appendEvent(cur, status, "", "")
 		return nil
 	})
 }

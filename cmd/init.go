@@ -24,6 +24,14 @@ func newInitCmd() *cobra.Command {
 				return err
 			}
 			if p.Initialized() {
+				// Upgrade repositories initialized by earlier releases, which only
+				// excluded the nested worktree directory and left control files dirty.
+				if err := excludeAgentspaceState(p.Root); err != nil {
+					return err
+				}
+				if err := excludeAgentContext(p.Root); err != nil {
+					return err
+				}
 				ui.Warn("agentspace already initialized at %s", p.Base)
 				return nil
 			}
@@ -58,7 +66,7 @@ func newInitCmd() *cobra.Command {
 				return err
 			}
 
-			if err := ensureGitignore(p.Root); err != nil {
+			if err := excludeAgentspaceState(p.Root); err != nil {
 				return err
 			}
 			if err := excludeAgentContext(p.Root); err != nil {
@@ -76,40 +84,20 @@ func newInitCmd() *cobra.Command {
 	return cmd
 }
 
-// ensureGitignore appends the workspaces dir to .gitignore if not present.
-func ensureGitignore(root string) error {
-	const entry = ".agentspace/workspaces/"
-	path := filepath.Join(root, ".gitignore")
-
-	data, err := os.ReadFile(path)
-	if err != nil && !os.IsNotExist(err) {
-		return err
-	}
-	content := string(data)
-	for _, line := range strings.Split(content, "\n") {
-		if strings.TrimSpace(line) == entry || strings.TrimSpace(line) == ".agentspace/workspaces" {
-			return nil // already ignored
-		}
-	}
-
-	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-	prefix := ""
-	if len(content) > 0 && !strings.HasSuffix(content, "\n") {
-		prefix = "\n"
-	}
-	_, err = f.WriteString(prefix + "\n# agentspace worktrees\n" + entry + "\n")
-	return err
+// excludeAgentspaceState keeps AgentSpace's local control files out of every
+// shared worktree without changing the user's tracked .gitignore.
+func excludeAgentspaceState(root string) error {
+	return addGitExclude(root, ".agentspace/")
 }
 
 // excludeAgentContext adds AGENT_CONTEXT.md to the repo's .git/info/exclude so
 // the agent context file is never staged, committed, or merged. The exclude
 // file lives in the shared common dir, so it applies to all worktrees.
 func excludeAgentContext(root string) error {
-	const entry = "AGENT_CONTEXT.md"
+	return addGitExclude(root, "AGENT_CONTEXT.md")
+}
+
+func addGitExclude(root, entry string) error {
 	commonDir, err := git.CommonDir(root)
 	if err != nil {
 		return nil // best-effort: skip if we cannot resolve the git dir

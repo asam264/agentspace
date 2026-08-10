@@ -95,6 +95,12 @@ func WorktreeAdd(dir, path, branch, from string) (string, error) {
 	return Run(dir, "worktree", "add", path, "-b", branch, from)
 }
 
+// WorktreeAddDetached creates an isolated temporary worktree without creating
+// or checking out another branch in the caller's main worktree.
+func WorktreeAddDetached(dir, path, from string) (string, error) {
+	return Run(dir, "worktree", "add", "--detach", path, from)
+}
+
 // WorktreeRemove removes a worktree (force).
 func WorktreeRemove(dir, path string) (string, error) {
 	return Run(dir, "worktree", "remove", path, "--force")

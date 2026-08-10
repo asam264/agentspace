@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"path/filepath"
+	"strings"
 
 	"github.com/asam264/agentspace/internal/git"
 	"github.com/asam264/agentspace/internal/ui"
@@ -33,6 +34,25 @@ func newStatusCmd() *cobra.Command {
 			ui.Plain("  Status:      %s", ws.Status)
 			ui.Plain("  Created:     %s", ws.CreatedAt)
 			ui.Plain("  Path:        %s", wsPath)
+			if ws.Handoff != nil {
+				ui.Plain("  Handoff:     %s (%s)", ws.Handoff.Commit, formatTimestamp(ws.Handoff.SubmittedAt))
+			}
+			if ws.Review != nil {
+				ui.Plain("  Review:      %s (%s)", ws.Review.Decision, formatTimestamp(ws.Review.ReviewedAt))
+			}
+			if len(ws.Task.AcceptanceCriteria) > 0 {
+				ui.Plain("  Acceptance: %s", strings.Join(ws.Task.AcceptanceCriteria, "; "))
+			}
+			if len(ws.Task.FileScope) > 0 {
+				ui.Plain("  Scope:      %s", strings.Join(ws.Task.FileScope, ", "))
+			}
+			if len(ws.Task.DependsOn) > 0 {
+				ui.Plain("  Depends on: %s", strings.Join(ws.Task.DependsOn, ", "))
+			}
+			if ws.Task.DispatchedAt != "" {
+				ui.Plain("  Dispatched:  %s", formatTimestamp(ws.Task.DispatchedAt))
+			}
+			ui.Plain("  Events:      %d", len(ws.Events))
 
 			// Diff stat vs base commit.
 			ui.Bold("\nChanges since base (%s):", ws.BaseCommit)
