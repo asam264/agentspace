@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"fmt"
-	"path/filepath"
 
 	"github.com/asam264/agentspace/internal/git"
 	"github.com/asam264/agentspace/internal/ui"
@@ -25,7 +24,10 @@ func newRestoreCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			wsPath := filepath.Join(p.Root, filepath.FromSlash(ws.Path))
+			wsPath, err := ensureCurrentExecution(p, ws)
+			if err != nil {
+				return err
+			}
 
 			// Find snapshot index + commit.
 			idx := -1

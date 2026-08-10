@@ -53,8 +53,12 @@ func newMergeCmd() *cobra.Command {
 // mergeDryRun tests the merge in a detached temporary worktree. It never checks
 // out another branch in the user's main worktree.
 func mergeDryRun(p workspace.Paths, ws *workspace.Workspace) error {
+	if ws.Handoff == nil || ws.Handoff.Commit == "" {
+		return fmt.Errorf("workspace %q has no submitted handoff to test", ws.Name)
+	}
 	tmpPath := filepath.Join(p.Base, fmt.Sprintf("merge-dryrun-%d", time.Now().UnixNano()))
-	if _, err := git.WorktreeAddDetached(p.Root, tmpPath, ws.BaseBranch); err != nil {
+	target := targetBranch(ws)
+	if _, err := git.WorktreeAddDetached(p.Root, tmpPath, target); err != nil {
 		return err
 	}
 	cleanup := func() {
@@ -63,9 +67,9 @@ func mergeDryRun(p workspace.Paths, ws *workspace.Workspace) error {
 	}
 	defer cleanup()
 
-	_, mergeErr := git.Run(tmpPath, "merge", "--no-commit", "--no-ff", ws.Branch)
+	_, mergeErr := git.Run(tmpPath, "merge", "--no-commit", "--no-ff", ws.Handoff.Commit)
 	if mergeErr == nil {
-		ui.Success("No conflicts: %q merges cleanly into %s", ws.Name, ws.BaseBranch)
+		ui.Success("No conflicts: %q merges cleanly into %s", ws.Name, target)
 		return nil
 	}
 
@@ -81,12 +85,12 @@ func mergeDryRun(p workspace.Paths, ws *workspace.Workspace) error {
 	return nil
 }
 
-// mergeRun performs the real squash merge into the base branch.
+// mergeRun performs the real squash merge into the workspace target branch.
 func mergeRun(p workspace.Paths, cfg *workspace.Config, ws *workspace.Workspace) error {
 	if err := ensureMergeReady(p, ws); err != nil {
 		return err
 	}
-	_, mergeErr := git.Run(p.Root, "merge", "--squash", ws.Branch)
+	_, mergeErr := git.Run(p.Root, "merge", "--squash", ws.Handoff.Commit)
 	if mergeErr != nil {
 		// Conflict path.
 		conflicts, _ := git.Run(p.Root, "diff", "--name-only", "--diff-filter=U")
@@ -110,7 +114,7 @@ func mergeRun(p workspace.Paths, cfg *workspace.Config, ws *workspace.Workspace)
 	}
 	_ = setStatus(p, ws.Name, workspace.StatusMerged)
 	p.AppendLog("merge name=" + ws.Name)
-	ui.Success("Merged %q into %s", ws.Name, cfg.BaseBranch)
+	ui.Success("Merged %q into %s", ws.Name, targetBranch(ws))
 	return nil
 }
 
@@ -122,6 +126,9 @@ func mergeContinue(p workspace.Paths, name string) error {
 	}
 	if ws.Status != workspace.StatusConflicted {
 		return fmt.Errorf("workspace %q is not in a conflicted state", name)
+	}
+	if blockers := workflowControlBlockers(ws); len(blockers) > 0 {
+		return fmt.Errorf("workspace %q cannot continue merge: %s", ws.Name, strings.Join(blockers, "; "))
 	}
 	if _, err := git.Run(p.Root, "add", "-A"); err != nil {
 		return err
@@ -146,7 +153,7 @@ func mergeAbort(p workspace.Paths, name string) error {
 	}
 	_ = setStatus(p, name, workspace.StatusAccepted)
 	p.AppendLog("merge-abort name=" + name)
-	ui.Success("Aborted merge of %q; base branch restored", name)
+	ui.Success("Aborted merge of %q; target branch restored", name)
 	return nil
 }
 
@@ -159,12 +166,15 @@ func ensureMergeReady(p workspace.Paths, ws *workspace.Workspace) error {
 	if ws.Review.Commit != ws.Handoff.Commit {
 		return fmt.Errorf("workspace %q review does not match its submitted handoff", ws.Name)
 	}
+	if blockers := workflowControlBlockers(ws); len(blockers) > 0 {
+		return fmt.Errorf("workspace %q cannot be merged: %s", ws.Name, strings.Join(blockers, "; "))
+	}
 	branch, err := git.CurrentBranch(p.Root)
 	if err != nil {
 		return err
 	}
-	if branch != ws.BaseBranch {
-		return fmt.Errorf("main worktree is on %q; switch to workspace base branch %q before merging", branch, ws.BaseBranch)
+	if branch != targetBranch(ws) {
+		return fmt.Errorf("main worktree is on %q; switch to workspace target branch %q before merging", branch, targetBranch(ws))
 	}
 	dirty, err := git.Run(p.Root, "status", "--porcelain")
 	if err != nil {
@@ -173,7 +183,10 @@ func ensureMergeReady(p workspace.Paths, ws *workspace.Workspace) error {
 	if dirty != "" {
 		return fmt.Errorf("main worktree has uncommitted changes; commit, stash, or clean it before merging:\n%s", dirty)
 	}
-	wsPath := filepath.Join(p.Root, filepath.FromSlash(ws.Path))
+	wsPath, err := executionPath(p, ws)
+	if err != nil {
+		return err
+	}
 	head, err := git.Run(wsPath, "rev-parse", "HEAD")
 	if err != nil {
 		return err

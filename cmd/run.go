@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 
 	"github.com/asam264/agentspace/internal/ui"
+	"github.com/asam264/agentspace/internal/workspace"
 	"github.com/spf13/cobra"
 )
 
@@ -29,7 +30,13 @@ func newRunCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			absPath := filepath.Join(p.Root, filepath.FromSlash(ws.Path))
+			if executionKind(ws) != workspace.ExecutionAgentSpace {
+				return fmt.Errorf("run is only supported for agentspace execution; create a Codex Worker task for %q instead", ws.Name)
+			}
+			absPath, err := executionPath(p, ws)
+			if err != nil {
+				return err
+			}
 			ctx := buildContext(p, ws)
 
 			if agent == "" {

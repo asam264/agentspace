@@ -59,6 +59,7 @@ func buildPreflightReport(store *workspace.Store, ws *workspace.Workspace) prefl
 	if ws.Status != workspace.StatusAccepted {
 		report.Blockers = append(report.Blockers, fmt.Sprintf("workspace status is %s, not accepted", ws.Status))
 	}
+	report.Blockers = append(report.Blockers, workflowControlBlockers(ws)...)
 	report.Blockers = append(report.Blockers, dependencyBlockers(store, ws)...)
 	report.Ready = len(report.Blockers) == 0
 	return report

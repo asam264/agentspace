@@ -3,7 +3,6 @@ package cmd
 import (
 	"fmt"
 	"os/exec"
-	"path/filepath"
 	"runtime"
 	"strings"
 	"time"
@@ -39,7 +38,10 @@ func newSubmitCmd() *cobra.Command {
 				return fmt.Errorf("workspace %q cannot be submitted while status is %s", ws.Name, ws.Status)
 			}
 
-			wsPath := filepath.Join(p.Root, filepath.FromSlash(ws.Path))
+			wsPath, err := ensureCurrentExecution(p, ws)
+			if err != nil {
+				return err
+			}
 			if err := commitWorkspaceChanges(wsPath, message); err != nil {
 				return err
 			}
@@ -79,6 +81,10 @@ func newSubmitCmd() *cobra.Command {
 				cur.Handoff = handoff
 				cur.Review = nil
 				cur.Status = workspace.StatusSubmitted
+				if hasPendingOverride(cur) {
+					cur.Control.Override.ResolvedAt = workspace.TimestampNow()
+					appendEvent(cur, "override_resolved", "fresh handoff submitted", head)
+				}
 				appendEvent(cur, "submitted", handoff.Summary, head)
 				return nil
 			}); err != nil {
@@ -87,6 +93,11 @@ func newSubmitCmd() *cobra.Command {
 			p.AppendLog(fmt.Sprintf("submit name=%s commit=%s", ws.Name, head))
 			ui.Success("Submitted %q for review at %s", ws.Name, head)
 			ui.Plain("  changed files: %d; checks: %d", len(files), len(results))
+			if ws.Master != nil && ws.Master.TaskID != "" && ws.Master.RelaySupported {
+				ui.Plain("  Completion relay: record attempted, notify Master task %s, then record delivered or failed", ws.Master.TaskID)
+			} else {
+				ui.Plain("  Completion relay: no supported Master endpoint; record agentspace relay %s --status unavailable -m <reason>", ws.Name)
+			}
 			return nil
 		},
 	}

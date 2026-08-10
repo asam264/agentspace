@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"fmt"
-	"path/filepath"
 
 	"github.com/asam264/agentspace/internal/git"
 	"github.com/spf13/cobra"
@@ -12,11 +11,11 @@ func newDiffCmd() *cobra.Command {
 	var vs string
 	cmd := &cobra.Command{
 		Use:   "diff <name>",
-		Short: "Show the diff of a workspace vs the base branch or another workspace",
+		Short: "Show the diff of a workspace vs its source commit or another workspace",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			name := args[0]
-			p, cfg, err := requireInit()
+			p, _, err := requireInit()
 			if err != nil {
 				return err
 			}
@@ -24,12 +23,15 @@ func newDiffCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			wsPath := filepath.Join(p.Root, filepath.FromSlash(ws.Path))
+			wsPath, err := executionPath(p, ws)
+			if err != nil {
+				return err
+			}
 
 			// Determine the comparison ref.
 			target := vs
 			if target == "" {
-				target = cfg.BaseBranch
+				target = ws.BaseCommit
 			}
 
 			var compareRef string
@@ -38,8 +40,13 @@ func newDiffCmd() *cobra.Command {
 				return err
 			}
 			if other := store.Find(target); other != nil {
-				// Compare against another workspace's branch.
-				compareRef = other.Branch
+				if other.Handoff != nil && other.Handoff.Commit != "" {
+					compareRef = other.Handoff.Commit
+				} else if other.Branch != "" {
+					compareRef = other.Branch
+				} else {
+					return fmt.Errorf("workspace %q has no attached handoff commit to compare", other.Name)
+				}
 			} else {
 				// Treat target as a branch/commit ref.
 				compareRef = target
@@ -54,6 +61,6 @@ func newDiffCmd() *cobra.Command {
 			return nil
 		},
 	}
-	cmd.Flags().StringVar(&vs, "vs", "", "compare against this branch/commit or another workspace name (default: base branch)")
+	cmd.Flags().StringVar(&vs, "vs", "", "compare against this branch/commit or another workspace name (default: source commit)")
 	return cmd
 }

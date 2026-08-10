@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"fmt"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -41,7 +40,13 @@ func newReviewCmd(use, decision, nextStatus, short string) *cobra.Command {
 			if ws.Status != workspace.StatusSubmitted || ws.Handoff == nil {
 				return fmt.Errorf("workspace %q is not awaiting review", ws.Name)
 			}
-			wsPath := filepath.Join(p.Root, filepath.FromSlash(ws.Path))
+			if blockers := workflowControlBlockers(ws); len(blockers) > 0 {
+				return fmt.Errorf("workspace %q cannot be reviewed: %s", ws.Name, strings.Join(blockers, "; "))
+			}
+			wsPath, err := executionPath(p, ws)
+			if err != nil {
+				return err
+			}
 			if dirty, err := git.Run(wsPath, "status", "--porcelain"); err != nil {
 				return err
 			} else if dirty != "" {
@@ -61,6 +66,9 @@ func newReviewCmd(use, decision, nextStatus, short string) *cobra.Command {
 				}
 				if cur.Handoff.Commit != head {
 					return fmt.Errorf("workspace %q handoff changed before review", ws.Name)
+				}
+				if blockers := workflowControlBlockers(cur); len(blockers) > 0 {
+					return fmt.Errorf("workspace %q cannot be reviewed: %s", cur.Name, strings.Join(blockers, "; "))
 				}
 				cur.Review = &workspace.Review{
 					Commit:     head,

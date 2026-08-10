@@ -58,10 +58,37 @@ func newResumeCmd() *cobra.Command {
 }
 
 func nextAction(store *workspace.Store, ws *workspace.Workspace) string {
+	if ws.Status == workspace.StatusPaused {
+		return "await User Owner or continue work: agentspace continue " + ws.Name
+	}
+	if hasPendingOverride(ws) {
+		return "send the User Owner correction to the Worker and submit a fresh handoff"
+	}
+	if executionKind(ws) == workspace.ExecutionCodex && !hasWorkerTask(ws) && ws.Status != workspace.StatusMerged && ws.Status != workspace.StatusCancelled && ws.Status != workspace.StatusFailed {
+		if ws.Task.DispatchedAt == "" {
+			return "prepare a Worker task packet: agentspace dispatch " + ws.Name
+		}
+		return "create a user-owned Worker task, then link it: agentspace link-task " + ws.Name + " --task-id <id> --title <title>"
+	}
+	if !hasAttachedExecution(ws) {
+		return "send the binding packet to the linked Worker; it must run: agentspace attach " + ws.Name + " --task-id " + ws.WorkerTask.ID
+	}
 	switch ws.Status {
 	case workspace.StatusActive:
-		return "dispatch a Worker: agentspace dispatch " + ws.Name
+		if ws.Task.DispatchedAt == "" {
+			if executionKind(ws) == workspace.ExecutionAgentSpace {
+				return "dispatch the explicit runner or work in its AgentSpace worktree: agentspace dispatch " + ws.Name
+			}
+			return "dispatch a Worker task packet: agentspace dispatch " + ws.Name
+		}
+		if executionKind(ws) == workspace.ExecutionAgentSpace {
+			return "monitor the explicit runner and record important feedback"
+		}
+		return "monitor the linked Worker task and record important feedback"
 	case workspace.StatusChangesReq:
+		if executionKind(ws) == workspace.ExecutionAgentSpace {
+			return "return review feedback to the legacy runner, then submit a new handoff"
+		}
 		return "send review feedback to the Worker, then submit a new handoff"
 	case workspace.StatusSubmitted:
 		return "review handoff: agentspace handoff " + ws.Name

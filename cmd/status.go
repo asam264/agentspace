@@ -2,11 +2,11 @@ package cmd
 
 import (
 	"fmt"
-	"path/filepath"
 	"strings"
 
 	"github.com/asam264/agentspace/internal/git"
 	"github.com/asam264/agentspace/internal/ui"
+	"github.com/asam264/agentspace/internal/workspace"
 	"github.com/spf13/cobra"
 )
 
@@ -25,15 +25,21 @@ func newStatusCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			wsPath := filepath.Join(p.Root, filepath.FromSlash(ws.Path))
+			wsPath, pathErr := executionPath(p, ws)
 
 			ui.Bold("Workspace: %s", ws.Name)
 			ui.Plain("  Description: %s", orDash(ws.Description))
 			ui.Plain("  Branch:      %s", ws.Branch)
-			ui.Plain("  Base:        %s (commit %s)", ws.BaseBranch, ws.BaseCommit)
+			ui.Plain("  Source:      %s (commit %s)", ws.BaseBranch, ws.BaseCommit)
+			ui.Plain("  Merge into:  %s", targetBranch(ws))
 			ui.Plain("  Status:      %s", ws.Status)
 			ui.Plain("  Created:     %s", ws.CreatedAt)
-			ui.Plain("  Path:        %s", wsPath)
+			if pathErr != nil {
+				ui.Plain("  Path:        (waiting for Codex Worker attach)")
+			} else {
+				ui.Plain("  Path:        %s", wsPath)
+			}
+			ui.Plain("  Execution:   %s", executionKind(ws))
 			if ws.Handoff != nil {
 				ui.Plain("  Handoff:     %s (%s)", ws.Handoff.Commit, formatTimestamp(ws.Handoff.SubmittedAt))
 			}
@@ -52,13 +58,30 @@ func newStatusCmd() *cobra.Command {
 			if ws.Task.DispatchedAt != "" {
 				ui.Plain("  Dispatched:  %s", formatTimestamp(ws.Task.DispatchedAt))
 			}
+			if ws.WorkerTask != nil {
+				ui.Plain("  Worker task: %s (%s)", ws.WorkerTask.Title, ws.WorkerTask.ID)
+				if ws.WorkerTask.LastKnownStatus != "" {
+					ui.Plain("  Task status: %s (%s)", ws.WorkerTask.LastKnownStatus, formatTimestamp(ws.WorkerTask.ObservedAt))
+				}
+			}
+			if ws.Status == workspace.StatusPaused {
+				ui.Plain("  Paused:      %s", formatTimestamp(ws.Control.PausedAt))
+				ui.Plain("  Pause reason: %s", ws.Control.PauseReason)
+			}
+			if hasPendingOverride(ws) {
+				ui.Plain("  Override:    %s", ws.Control.Override.Reason)
+			}
 			ui.Plain("  Events:      %d", len(ws.Events))
 
 			// Diff stat vs base commit.
 			ui.Bold("\nChanges since base (%s):", ws.BaseCommit)
-			stat, err := git.Run(wsPath, "diff", "--stat", ws.BaseCommit)
-			if err != nil {
-				return err
+			stat := ""
+			if pathErr == nil {
+				var err error
+				stat, err = git.Run(wsPath, "diff", "--stat", ws.BaseCommit)
+				if err != nil {
+					return err
+				}
 			}
 			if stat == "" {
 				ui.Plain("  (no committed changes)")
@@ -68,9 +91,13 @@ func newStatusCmd() *cobra.Command {
 
 			// Uncommitted changes.
 			ui.Bold("Uncommitted changes:")
-			short, err := git.Run(wsPath, "status", "--short")
-			if err != nil {
-				return err
+			short := ""
+			if pathErr == nil {
+				var err error
+				short, err = git.Run(wsPath, "status", "--short")
+				if err != nil {
+					return err
+				}
 			}
 			if short == "" {
 				ui.Plain("  (clean)")

@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"fmt"
-	"path/filepath"
 	"time"
 
 	"github.com/asam264/agentspace/internal/git"
@@ -30,7 +29,10 @@ func newSnapshotCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			wsPath := filepath.Join(p.Root, filepath.FromSlash(ws.Path))
+			wsPath, err := ensureCurrentExecution(p, ws)
+			if err != nil {
+				return err
+			}
 
 			if _, err := git.Run(wsPath, "add", "-A"); err != nil {
 				return err

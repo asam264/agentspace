@@ -1,0 +1,4 @@
+interface:
+  display_name: "AgentSpace Master"
+  short_description: "Coordinate visible Worker tasks and safe merges"
+  default_prompt: "Use $agentspace-master to coordinate this coding task through AgentSpace."

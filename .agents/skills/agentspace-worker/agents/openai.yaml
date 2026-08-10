@@ -1,0 +1,4 @@
+interface:
+  display_name: "AgentSpace Worker"
+  short_description: "Implement one linked worktree task safely"
+  default_prompt: "Use $agentspace-worker to implement this assigned AgentSpace task."

@@ -9,7 +9,7 @@ import (
 var rootCmd = &cobra.Command{
 	Use:           "agentspace",
 	Short:         "Manage parallel AI-agent workspaces backed by git worktrees",
-	Long:          "agentspace creates isolated git-worktree-backed workspaces so multiple AI agents can work on the same project in parallel and merge back into the base branch.",
+	Long:          "agentspace creates isolated git-worktree-backed workspaces so multiple AI agents can work on the same project in parallel and merge back into a chosen target branch.",
 	SilenceUsage:  true,
 	SilenceErrors: true,
 }
@@ -41,6 +41,15 @@ func init() {
 		newResumeCmd(),
 		newPreflightCmd(),
 		newDispatchCmd(),
+		newAttachCmd(),
+		newRelayCmd(),
+		newLinkTaskCmd(),
+		newObserveTaskCmd(),
+		newPauseCmd(),
+		newContinueCmd(),
+		newOverrideCmd(),
+		newNoteCmd(),
+		newInboxCmd(),
 		newEventsCmd(),
 		newCancelCmd(),
 		newFailCmd(),
@@ -49,7 +58,7 @@ func init() {
 }
 
 // versionString is set for the --version flag area if needed later.
-var versionString = "0.2.0"
+var versionString = "0.3.0"
 
 func init() {
 	rootCmd.Version = versionString

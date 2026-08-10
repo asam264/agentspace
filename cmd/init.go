@@ -36,7 +36,8 @@ func newInitCmd() *cobra.Command {
 				return nil
 			}
 
-			// Determine base branch: --branch override or current branch.
+			// Preserve a branch in config for compatibility and detached-HEAD
+			// diagnostics. `new` follows the current branch at creation time.
 			baseBranch := branch
 			if baseBranch == "" {
 				baseBranch, err = git.CurrentBranch(p.Root)
@@ -74,13 +75,13 @@ func newInitCmd() *cobra.Command {
 			}
 
 			p.AppendLog("init base_branch=" + baseBranch)
-			ui.Success("Initialized agentspace (base branch: %s)", baseBranch)
+			ui.Success("Initialized agentspace (initial branch: %s)", baseBranch)
 			ui.Plain("  config:     %s", p.ConfigFile)
 			ui.Plain("  workspaces: %s", p.WorkspacesDir)
 			return nil
 		},
 	}
-	cmd.Flags().StringVar(&branch, "branch", "", "base branch (defaults to current branch)")
+	cmd.Flags().StringVar(&branch, "branch", "", "initial branch recorded for compatibility (defaults to current branch)")
 	return cmd
 }
 

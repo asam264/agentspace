@@ -40,7 +40,7 @@ func newCleanCmd() *cobra.Command {
 
 			ui.Bold("Merged workspaces to remove:")
 			for _, ws := range merged {
-				ui.Plain("  %s (%s)", ws.Name, ws.Branch)
+				ui.Plain("  %s (%s)", ws.Name, executionKind(&ws))
 			}
 
 			if !yes {

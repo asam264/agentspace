@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"fmt"
-	"path/filepath"
 
 	"github.com/asam264/agentspace/internal/git"
 	"github.com/asam264/agentspace/internal/ui"
@@ -37,13 +36,18 @@ func newRemoveCmd() *cobra.Command {
 
 // removeWorkspace removes the worktree, deletes the branch, and drops metadata.
 func removeWorkspace(p workspace.Paths, ws *workspace.Workspace) error {
-	absPath := filepath.Join(p.Root, filepath.FromSlash(ws.Path))
-	if _, err := git.WorktreeRemove(p.Root, absPath); err != nil {
-		return err
-	}
-	if git.BranchExists(p.Root, ws.Branch) {
-		if _, err := git.BranchDelete(p.Root, ws.Branch); err != nil {
+	if executionKind(ws) == workspace.ExecutionAgentSpace {
+		absPath, err := executionPath(p, ws)
+		if err != nil {
 			return err
+		}
+		if _, err := git.WorktreeRemove(p.Root, absPath); err != nil {
+			return err
+		}
+		if ws.Branch != "" && git.BranchExists(p.Root, ws.Branch) {
+			if _, err := git.BranchDelete(p.Root, ws.Branch); err != nil {
+				return err
+			}
 		}
 	}
 	name := ws.Name

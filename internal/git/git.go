@@ -116,3 +116,18 @@ func BranchExists(dir, branch string) bool {
 	_, err := Run(dir, "rev-parse", "--verify", "refs/heads/"+branch)
 	return err == nil
 }
+
+// WorktreePaths returns the roots registered in this repository's worktree list.
+func WorktreePaths(dir string) ([]string, error) {
+	out, err := Run(dir, "worktree", "list", "--porcelain")
+	if err != nil {
+		return nil, err
+	}
+	var paths []string
+	for _, line := range strings.Split(out, "\n") {
+		if strings.HasPrefix(line, "worktree ") {
+			paths = append(paths, filepath.Clean(strings.TrimPrefix(line, "worktree ")))
+		}
+	}
+	return paths, nil
+}

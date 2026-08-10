@@ -43,14 +43,22 @@ func newListCmd() *cobra.Command {
 			}
 
 			w := tabwriter.NewWriter(os.Stdout, 0, 4, 2, ' ', 0)
-			fmt.Fprintln(w, "NAME\tDESCRIPTION\tBASE\tSTATUS\tDEPS\tSCOPE\tPATH")
+			fmt.Fprintln(w, "NAME\tDESCRIPTION\tSOURCE\tTARGET\tEXECUTION\tSTATUS\tTASK\tDEPS\tSCOPE\tPATH")
 			for _, ws := range store.Workspaces {
 				desc := ws.Description
 				if desc == "" {
 					desc = "-"
 				}
-				fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
-					ws.Name, desc, ws.BaseBranch, ws.Status, orDash(strings.Join(ws.Task.DependsOn, ",")), orDash(strings.Join(ws.Task.FileScope, ",")), ws.Path)
+				taskID := "-"
+				if ws.WorkerTask != nil {
+					taskID = ws.WorkerTask.ID
+				}
+				path := ws.Execution.Path
+				if path == "" {
+					path = ws.Path
+				}
+				fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
+					ws.Name, desc, ws.BaseBranch, targetBranch(&ws), executionKind(&ws), ws.Status, taskID, orDash(strings.Join(ws.Task.DependsOn, ",")), orDash(strings.Join(ws.Task.FileScope, ",")), path)
 			}
 			return w.Flush()
 		},
