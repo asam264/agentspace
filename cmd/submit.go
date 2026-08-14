@@ -121,7 +121,7 @@ func commitWorkspaceChanges(dir, message string) error {
 	if _, err := git.Run(dir, "diff", "--cached", "--quiet"); err == nil {
 		return nil
 	}
-	_, err = git.Run(dir, "commit", "--no-verify", "-m", "[交接] "+strings.TrimSpace(message))
+	_, err = git.Run(dir, "commit", "--no-verify", "-m", "[handoff] "+strings.TrimSpace(message))
 	return err
 }
 
