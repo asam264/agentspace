@@ -59,7 +59,7 @@ func init() {
 }
 
 // versionString is set for the --version flag area if needed later.
-var versionString = "0.4.0"
+var versionString = "0.4.1"
 
 func init() {
 	rootCmd.Version = versionString

@@ -141,7 +141,7 @@ func mergeRun(p workspace.Paths, cfg *workspace.Config, ws *workspace.Workspace)
 		return fmt.Errorf("merge stopped due to conflicts")
 	}
 
-	msg := fmt.Sprintf("agentspace: merge %s\n\n%s", ws.Name, mergeSummary(ws))
+	msg := fmt.Sprintf("AgentSpace：合并工作区 %s\n\n%s", ws.Name, mergeSummary(ws))
 	if _, err := git.Run(p.Root, "commit", "--no-verify", "-m", msg); err != nil {
 		return err
 	}
@@ -166,7 +166,7 @@ func mergeContinue(p workspace.Paths, name string) error {
 	if _, err := git.Run(p.Root, "add", "-A"); err != nil {
 		return err
 	}
-	msg := fmt.Sprintf("agentspace: merge %s\n\n%s", ws.Name, mergeSummary(ws))
+	msg := fmt.Sprintf("AgentSpace：合并工作区 %s\n\n%s", ws.Name, mergeSummary(ws))
 	if _, err := git.Run(p.Root, "commit", "--no-verify", "-m", msg); err != nil {
 		return err
 	}
