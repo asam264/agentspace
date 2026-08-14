@@ -25,6 +25,8 @@ type Paths struct {
 	StoreFile     string // <root>/.agentspace/workspaces.json
 	LogsDir       string // <root>/.agentspace/logs
 	WorkspacesDir string // <root>/.agentspace/workspaces
+	ReviewsDir    string // <root>/.agentspace/reviews
+	TmpDir        string // <root>/.agentspace/tmp
 }
 
 // NewPaths builds the Paths for a given repo root.
@@ -37,6 +39,8 @@ func NewPaths(root string) Paths {
 		StoreFile:     filepath.Join(base, "workspaces.json"),
 		LogsDir:       filepath.Join(base, "logs"),
 		WorkspacesDir: filepath.Join(base, "workspaces"),
+		ReviewsDir:    filepath.Join(base, "reviews"),
+		TmpDir:        filepath.Join(base, "tmp"),
 	}
 }
 

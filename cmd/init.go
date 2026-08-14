@@ -47,7 +47,7 @@ func newInitCmd() *cobra.Command {
 			}
 
 			// Create directory structure.
-			for _, dir := range []string{p.Base, p.LogsDir, p.WorkspacesDir} {
+			for _, dir := range []string{p.Base, p.LogsDir, p.WorkspacesDir, p.ReviewsDir, p.TmpDir} {
 				if err := os.MkdirAll(dir, 0o755); err != nil {
 					return err
 				}

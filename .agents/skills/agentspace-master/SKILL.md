@@ -34,7 +34,7 @@ Do not use an internal `spawn_agent` or `agentspace run ... codex` for this Desk
 
 ## Review and merge
 
-1. On submission, inspect `agentspace handoff <name>`, the diff against the recorded base commit, and checks.
+1. On submission, inspect `agentspace handoff <name>`, the diff against the recorded base commit, and checks. Tell the User Owner the exact command `agentspace review <name> --open`; wait for their approval or change request after they inspect that fixed Handoff snapshot in GoLand.
 2. Run the repository-required review and independent checks. If incomplete, use `agentspace request-changes <name> -m <specific feedback>` and message the linked Worker.
 3. Approve only the exact fresh Handoff with `agentspace approve <name> -m <review result>`. AgentSpace rejects review or merge without a linked task, after a pause, or while a User Owner override is unresolved.
 4. Run `agentspace preflight <name>`, then `agentspace merge <name> --dry-run` and `agentspace merge <name>` only when the user-authorized workflow, dependency order, and main-worktree checks all pass.

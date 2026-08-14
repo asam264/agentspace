@@ -36,6 +36,9 @@ func newRemoveCmd() *cobra.Command {
 
 // removeWorkspace removes the worktree, deletes the branch, and drops metadata.
 func removeWorkspace(p workspace.Paths, ws *workspace.Workspace) error {
+	if err := removeReviewWorkspaces(p, ws); err != nil {
+		return err
+	}
 	if executionKind(ws) == workspace.ExecutionAgentSpace {
 		absPath, err := executionPath(p, ws)
 		if err != nil {

@@ -52,20 +52,46 @@ func newMergeCmd() *cobra.Command {
 
 // mergeDryRun tests the merge in a detached temporary worktree. It never checks
 // out another branch in the user's main worktree.
-func mergeDryRun(p workspace.Paths, ws *workspace.Workspace) error {
+func mergeDryRun(p workspace.Paths, ws *workspace.Workspace) (resultErr error) {
 	if ws.Handoff == nil || ws.Handoff.Commit == "" {
 		return fmt.Errorf("workspace %q has no submitted handoff to test", ws.Name)
 	}
-	tmpPath := filepath.Join(p.Base, fmt.Sprintf("merge-dryrun-%d", time.Now().UnixNano()))
+	if err := os.MkdirAll(p.TmpDir, 0o755); err != nil {
+		return err
+	}
+	tmpPath := filepath.Join(p.TmpDir, fmt.Sprintf("merge-dryrun-%d", time.Now().UnixNano()))
 	target := targetBranch(ws)
 	if _, err := git.WorktreeAddDetached(p.Root, tmpPath, target); err != nil {
 		return err
 	}
-	cleanup := func() {
-		_, _ = git.Run(tmpPath, "merge", "--abort")
-		_, _ = git.WorktreeRemove(p.Root, tmpPath)
+	markerPath, err := writeDryRunMarker(p, tmpPath)
+	if err != nil {
+		if _, removeErr := git.WorktreeRemove(p.Root, tmpPath); removeErr != nil {
+			cleanupErr := fmt.Errorf("write marker: %v; remove worktree: %w", err, removeErr)
+			recordDryRunCleanupFailure(p, ws, tmpPath, cleanupErr)
+			ui.Warn("merge dry-run temporary worktree could not be initialized or removed: %s", tmpPath)
+			return fmt.Errorf("create merge dry-run marker failed and temporary worktree remains at %s; close processes using it, then run git -C %q worktree remove --force %q: %w", tmpPath, p.Root, tmpPath, cleanupErr)
+		}
+		return err
 	}
-	defer cleanup()
+	defer func() {
+		_, _ = git.Run(tmpPath, "merge", "--abort")
+		var cleanupErr error
+		cleanupPath := tmpPath
+		if _, err := git.WorktreeRemove(p.Root, tmpPath); err != nil {
+			cleanupErr = err
+		} else if err := os.Remove(markerPath); err != nil && !os.IsNotExist(err) {
+			cleanupErr = err
+			cleanupPath = markerPath
+		}
+		if cleanupErr != nil {
+			recordDryRunCleanupFailure(p, ws, cleanupPath, cleanupErr)
+			ui.Warn("merge dry-run temporary files could not be fully cleaned: %s", cleanupPath)
+			if resultErr == nil {
+				resultErr = fmt.Errorf("merge dry-run completed but temporary cleanup failed; run agentspace clean --temp after closing any process using %s: %w", cleanupPath, cleanupErr)
+			}
+		}
+	}()
 
 	_, mergeErr := git.Run(tmpPath, "merge", "--no-commit", "--no-ff", ws.Handoff.Commit)
 	if mergeErr == nil {
@@ -83,6 +109,13 @@ func mergeDryRun(p workspace.Paths, ws *workspace.Workspace) error {
 		ui.Plain("  %s", f)
 	}
 	return nil
+}
+
+func recordDryRunCleanupFailure(p workspace.Paths, ws *workspace.Workspace, path string, cleanupErr error) {
+	p.AppendLog(fmt.Sprintf("merge-dryrun-cleanup-failed path=%s error=%v", path, cleanupErr))
+	if eventErr := recordEvent(p, ws.Name, "merge_dryrun_cleanup_failed", path+": "+cleanupErr.Error(), ws.Handoff.Commit); eventErr != nil {
+		p.AppendLog(fmt.Sprintf("merge-dryrun-cleanup-event-failed path=%s error=%v", path, eventErr))
+	}
 }
 
 // mergeRun performs the real squash merge into the workspace target branch.

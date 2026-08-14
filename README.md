@@ -59,6 +59,7 @@ your-project/
 | `diff <name>` | 查看 diff |
 | `submit <name> -m <msg>` | Worker 提交最终交接，等待 Master 审核 |
 | `handoff <name>` | 查看 Worker 的最终提交、文件和测试记录 |
+| `review <name> [--open]` | 创建固定 Handoff 的审核 worktree；可选打开 GoLand |
 | `approve <name> -m <msg>` | Master 记录审核通过，允许合并 |
 | `request-changes <name> -m <msg>` | Master 退回 Worker 修改 |
 | `merge <name>` | 将已审核通过的工作区合并回主分支 |
@@ -134,6 +135,9 @@ agentspace diff feat-auth --vs fix-payment  # 与另一个工作区对比
 agentspace submit feat-auth -m "完成登录模块" --test "go test ./..."
 agentspace handoff feat-auth
 
+# User Owner 审核固定 Handoff 快照；不会切换主工作区或修改 Worker
+agentspace review feat-auth --open
+
 # Master 完成代码审核后，显式批准该交接（第三期必须已关联 Worker 任务）
 agentspace approve feat-auth -m "代码审核及测试均通过"
 
@@ -149,6 +153,14 @@ agentspace merge --abort feat-auth
 ```
 
 创建工作区时，`--from` 是来源 ref，`--into` 是最终合并目标本地分支；两者要么同时省略（均为执行 `agentspace new` 时主工作区的当前本地分支），要么同时显式传入。`--from` 可以是 `origin/main`，但 `--into` 必须是可检出的本地分支。创建 worktree 不会切换主工作区分支。合并前会验证主工作区没有未提交修改、当前分支等于工作区的目标分支，并验证 Worker 的 `HEAD` 仍是已审核的提交。Desktop 工作区还会拒绝未关联 Worker 任务、已暂停或有未处理用户更正的工作区；显式 runner 保持原有工作流。冲突时会提示是否用编辑器打开冲突文件。编辑器取自 `config.json` 的 `editor` 字段；为空时按 `code → goland → idea → vim → vi` 顺序自动探测。
+
+### GoLand 审核 Handoff
+
+Worker 提交 Handoff 后，Master 会直接给出 `agentspace review <任务名> --open`。该命令在 `.agentspace/reviews/` 创建或复用一个 detached worktree，`HEAD` 固定为这次 Handoff 的 commit；它不是 Worker 的实际目录，因此 Worker 后续工作或主分支都不会改变你正在审的内容。新 Handoff 会使用新的 commit 目录。
+
+`--open` 会调用 `AGENTSPACE_REVIEW_EDITOR` 指定的 GoLand launcher，或自动探测 PATH 中的 `goland64.exe`、`goland.bat`、`goland`。若没有 launcher，命令仍会输出审核目录，可手动打开。要让每次审核在新 GoLand 窗口打开，在 GoLand 的 **Settings → Appearance & Behavior → System Settings → Open project in** 选择 **New Window**。
+
+`merge --dry-run` 的临时 worktree 位于 `.agentspace/tmp/`，正常完成后会自动删除。若因文件锁等原因遗留，命令会明确提示路径；使用 `agentspace clean --temp` 只会列出并清理带有本仓库 AgentSpace 标记、且未注册的 `merge-dryrun-*` 孤儿临时条目（目录或残留标记），审核目录不会被该命令触碰。
 
 ### 清理
 

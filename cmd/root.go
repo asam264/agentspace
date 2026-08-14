@@ -36,6 +36,7 @@ func init() {
 		newRunCmd(),
 		newSubmitCmd(),
 		newHandoffCmd(),
+		newReviewWorkspaceCmd(),
 		newApproveCmd(),
 		newRequestChangesCmd(),
 		newResumeCmd(),
@@ -58,7 +59,7 @@ func init() {
 }
 
 // versionString is set for the --version flag area if needed later.
-var versionString = "0.3.0"
+var versionString = "0.4.0"
 
 func init() {
 	rootCmd.Version = versionString

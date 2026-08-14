@@ -45,6 +45,14 @@ type Review struct {
 	ReviewedAt string `json:"reviewed_at"`
 }
 
+// ReviewWorkspace is a detached worktree pinned to one Handoff commit for
+// User Owner inspection. It never grants review or merge authority.
+type ReviewWorkspace struct {
+	Path      string `json:"path"`
+	Commit    string `json:"commit"`
+	CreatedAt string `json:"created_at"`
+}
+
 // TaskManifest contains the durable coordination details for a workspace.
 type TaskManifest struct {
 	AcceptanceCriteria []string `json:"acceptance_criteria"`
@@ -110,25 +118,26 @@ type Event struct {
 
 // Workspace is the metadata for one git-worktree-backed workspace.
 type Workspace struct {
-	Name         string          `json:"name"`
-	Description  string          `json:"description"`
-	Prompt       string          `json:"prompt"`
-	Branch       string          `json:"branch"`
-	BaseCommit   string          `json:"base_commit"`
-	BaseBranch   string          `json:"base_branch"` // Source Ref; retained for legacy metadata compatibility.
-	TargetBranch string          `json:"target_branch,omitempty"`
-	Status       string          `json:"status"`
-	CreatedAt    string          `json:"created_at"`
-	Path         string          `json:"path"`
-	Snapshots    []Snapshot      `json:"snapshots"`
-	Handoff      *Handoff        `json:"handoff,omitempty"`
-	Review       *Review         `json:"review,omitempty"`
-	Task         TaskManifest    `json:"task"`
-	WorkerTask   *WorkerTask     `json:"worker_task,omitempty"`
-	Execution    Execution       `json:"execution,omitempty"`
-	Master       *MasterEndpoint `json:"master_endpoint,omitempty"`
-	Control      Control         `json:"control,omitempty"`
-	Events       []Event         `json:"events,omitempty"`
+	Name         string            `json:"name"`
+	Description  string            `json:"description"`
+	Prompt       string            `json:"prompt"`
+	Branch       string            `json:"branch"`
+	BaseCommit   string            `json:"base_commit"`
+	BaseBranch   string            `json:"base_branch"` // Source Ref; retained for legacy metadata compatibility.
+	TargetBranch string            `json:"target_branch,omitempty"`
+	Status       string            `json:"status"`
+	CreatedAt    string            `json:"created_at"`
+	Path         string            `json:"path"`
+	Snapshots    []Snapshot        `json:"snapshots"`
+	Handoff      *Handoff          `json:"handoff,omitempty"`
+	Review       *Review           `json:"review,omitempty"`
+	ReviewSpaces []ReviewWorkspace `json:"review_workspaces,omitempty"`
+	Task         TaskManifest      `json:"task"`
+	WorkerTask   *WorkerTask       `json:"worker_task,omitempty"`
+	Execution    Execution         `json:"execution,omitempty"`
+	Master       *MasterEndpoint   `json:"master_endpoint,omitempty"`
+	Control      Control           `json:"control,omitempty"`
+	Events       []Event           `json:"events,omitempty"`
 }
 
 // Store is the on-disk shape of workspaces.json.

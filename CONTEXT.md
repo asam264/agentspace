@@ -60,6 +60,10 @@ _Avoid_: snapshot, informal completion message
 The Master's recorded decision on the exact commit named by a Handoff.
 _Avoid_: test result, merge
 
+**Review Workspace**:
+A detached worktree pinned to one Handoff commit so the User Owner can inspect it before the Master records a Review. It is neither an Execution Workspace nor a temporary merge check.
+_Avoid_: Worker worktree, Main Worktree, merge dry-run directory
+
 **Main Worktree**:
 The original worktree with an Execution Workspace's Target Branch checked out, where approved Handoffs are merged.
 _Avoid_: Master, execution workspace

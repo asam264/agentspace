@@ -42,6 +42,11 @@ func newStatusCmd() *cobra.Command {
 			ui.Plain("  Execution:   %s", executionKind(ws))
 			if ws.Handoff != nil {
 				ui.Plain("  Handoff:     %s (%s)", ws.Handoff.Commit, formatTimestamp(ws.Handoff.SubmittedAt))
+				if reviewSpace := reviewWorkspaceForCommit(ws, ws.Handoff.Commit); reviewSpace != nil {
+					ui.Plain("  Review path:  %s", reviewSpace.Path)
+				} else {
+					ui.Plain("  Review:      agentspace review %s --open", ws.Name)
+				}
 			}
 			if ws.Review != nil {
 				ui.Plain("  Review:      %s (%s)", ws.Review.Decision, formatTimestamp(ws.Review.ReviewedAt))

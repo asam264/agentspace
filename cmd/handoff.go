@@ -34,6 +34,11 @@ func newHandoffCmd() *cobra.Command {
 				return json.NewEncoder(os.Stdout).Encode(ws.Handoff)
 			}
 			printHandoff(ws.Handoff)
+			if reviewSpace := reviewWorkspaceForCommit(ws, ws.Handoff.Commit); reviewSpace != nil {
+				ui.Plain("Review workspace: %s", reviewSpace.Path)
+			} else {
+				ui.Plain("Review in GoLand: agentspace review %s --open", ws.Name)
+			}
 			if ws.Review != nil {
 				ui.Bold("Review:")
 				ui.Plain("  %s at %s", ws.Review.Decision, formatTimestamp(ws.Review.ReviewedAt))

@@ -93,6 +93,7 @@ func newSubmitCmd() *cobra.Command {
 			p.AppendLog(fmt.Sprintf("submit name=%s commit=%s", ws.Name, head))
 			ui.Success("Submitted %q for review at %s", ws.Name, head)
 			ui.Plain("  changed files: %d; checks: %d", len(files), len(results))
+			ui.Plain("  Review in GoLand: agentspace review %s --open", ws.Name)
 			if ws.Master != nil && ws.Master.TaskID != "" && ws.Master.RelaySupported {
 				ui.Plain("  Completion relay: record attempted, notify Master task %s, then record delivered or failed", ws.Master.TaskID)
 			} else {
